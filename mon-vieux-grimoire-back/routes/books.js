@@ -1,13 +1,14 @@
 const express = require('express');
 const router = express.Router();
 const multer = require('multer');
-const Book = require('../models/book'); // Chemin vers ton modèle Book
-const auth = require('../middleware/auth'); // Middleware d'authentification
+const Book = require('../models/book');
+const auth = require('../middleware/auth'); 
 
-// Configuration de Multer pour gérer les fichiers images
+
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, 'uploads/'); // Dossier de stockage des images
+    cb(null, 'uploads/');
   },
   filename: (req, file, cb) => {
     const uniqueName = Date.now() + '-' + file.originalname;
@@ -16,15 +17,13 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage });
 
-/**
- * Route POST pour ajouter un livre avec une image
- */
+
 router.post('/', auth, upload.single('image'), async (req, res) => {
   try {
-    const bookData = JSON.parse(req.body.book); // Les infos JSON du livre
-    bookData.userId = req.userId; // Ajout de l'userId depuis le token (sécurité)
+    const bookData = JSON.parse(req.body.book); 
+    bookData.userId = req.userId;
 
-    // Enregistre l'URL de l'image dans l'objet book
+    
     if (req.file) {
       bookData.imageUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
     }
@@ -38,5 +37,17 @@ router.post('/', auth, upload.single('image'), async (req, res) => {
     res.status(400).json({ error: err.message });
   }
 });
+
+//---------Livres les mieux notés-------------
+
+router.get('/bestrating', async (req, res) => {
+  try {
+    const topBooks = await Book.find().sort({ averageRating: -1 }).limit(3);
+    res.status(200).json(topBooks);
+  } catch (err) {
+    res.status(400).json({ error: 'Impossible de récupérer les livres les mieux notés.' });
+  }
+});
+
 
 module.exports = router;
