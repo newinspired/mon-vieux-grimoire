@@ -9,11 +9,18 @@ const auth = require('./middleware/auth'); // 🔐 import du middleware
 
 const app = express();
 const PORT = 3001;
-const cors = require('cors');
+
+
+const multer = require('multer');
+const upload = multer({ dest: 'uploads/' });
+
+const path = require('path');
+
 
 app.use(express.json());
 
 //-----------PERMET UNIQUEMENT LA CONNEXION DU FRONT SUR LE PORT 3000 -------
+const cors = require('cors');
 
 const corsOptions = {
   origin: 'http://localhost:3000',
@@ -21,18 +28,37 @@ const corsOptions = {
   credentials: true,
 };
 
-app.use(cors(corsOptions)); //'*' permet de répondre a toutes les requetes
+app.use(cors(corsOptions));
+
+//-----------PERMET UNIQUEMENT LA CONNEXION DU FRONT SUR LE PORT 3000 -------
+
+const bookRoutes = require('./routes/books');
+app.use('/api/books', bookRoutes);
+
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 
 
 
 //----------AJOUT DES LIVRES (protégé) ----------------
-app.post('/api/books', auth, async (req, res) => {
+
+app.post('/api/books', auth, upload.single('image'), async (req, res) => {
   console.log('POST /api/books avec userId:', req.userId);
+
   try {
-    const book = new Book({ ...req.body, userId: req.userId });
+    const bookData = JSON.parse(req.body.book);
+
+    bookData.userId = req.userId;
+
+    if (req.file) {
+      bookData.imageUrl = `${req.protocol}://${req.get('host')}/uploads/${req.file.filename}`;
+    }
+
+    const book = new Book(bookData);
     await book.save();
     res.status(201).json({ message: 'Livre enregistré !' });
   } catch (err) {
+    console.error('Erreur dans POST /api/books:', err);
     res.status(400).json({ error: err.message });
   }
 });
@@ -97,21 +123,14 @@ app.delete('/api/books/:id', auth, async (req, res) => {
 mongoose.connect('mongodb://127.0.0.1:27017/mon-vieux-grimoire')
   .then(() => {
     console.log('Connexion à MongoDB réussie !');
-    console.log(
-      app._router.stack
-        .filter(r => r.route)
-        .map(r => {
-          const methods = Object.keys(r.route.methods).map(m => m.toUpperCase());
-          return `${methods.join(', ')} ${r.route.path}`;
-        })
-    );
+
     app.listen(PORT, () => {
       console.log(`Serveur lancé sur http://localhost:${PORT}`);
     });
   })
   .catch((err) => {
-    console.error('Connexion à MongoDB échouée :', err?.stack || err || 'Erreur inconnue');
-  });
+  console.error('Connexion à MongoDB échouée :', err?.stack ?? err ?? 'Erreur inconnue');
+});
 
 app.get('/', (req, res) => {
   res.send('Bienvenue sur Mon Vieux Grimoire ! 📚');
@@ -155,3 +174,4 @@ app.post('/api/auth/login', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
